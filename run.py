@@ -5,7 +5,7 @@ from example_dataloader import ExampleDatamodule
 from models.dnn import NeuralNetwork
 from models.cnn import ConvNet
 from models.rnn import RecurrentNet
-from models.autoencoder import Autoencoder
+from models.autoencoder import Autoencoder, CNNAutoencoder, ExampleClassifier
 from manager.managers import ClassifierManager, AutoencoderManager
 
 
@@ -52,16 +52,22 @@ def run_autoencoder():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("Using {} device".format(device))
 
-    num_epochs = 30
+    num_epochs = 10
     dm = ExampleDatamodule(data_path='data',
                            batch_size=128)
 
-    autoencoder = Autoencoder(input_dim=dm.dims,
-                              num_classes=dm.num_classes)
+    autoencoder = CNNAutoencoder(input_dim=dm.dims,
+                                 num_classes=dm.num_classes)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(autoencoder.parameters(),
                                  lr=0.005)
+
+    clf = ExampleClassifier(encoded_dim=7 * 7 * 32,
+                            num_classes=dm.num_classes)
+    clf_optim = torch.optim.SGD(clf.parameters(),
+                                lr=1e-3)
+    clf_loss = nn.CrossEntropyLoss()
 
     m = AutoencoderManager(num_classes=dm.num_classes,
                            feature_dim=dm.dims,
@@ -69,10 +75,14 @@ def run_autoencoder():
                            device=device,
                            loss_fn=loss_fn,
                            model=autoencoder,
+                           classifier=clf,
+                           classifier_optim=clf_optim,
+                           classifier_loss_fn=clf_loss,
                            num_epochs=num_epochs,
                            optimizer=optimizer)
 
     m.run()
+    m.run_classifier_train()
 
 
 if __name__ == '__main__':

@@ -157,7 +157,7 @@ class ClassifierManager(ManagerBase):
                 self._valid_accuracy.update(acc.detach().cpu(), n=num_data)
 
         outputs = dict(loss=self._valid_loss.avg, acc=self._valid_accuracy.avg)
-        print("Valid | Epoch: {} | loss: {:.5f}, acc: {:.2f}%".format(curr_epoch,
+        print("Valid | Epoch: {} | loss: {:.5f}, acc: {:.2f}%".format(curr_epoch + 1,
                                                                       self._valid_loss.avg,
                                                                       self._valid_accuracy.avg * 100))
 
@@ -172,6 +172,10 @@ class AutoencoderManager(ManagerBase):
     def __init__(self,
                  loss_fn: nn.Module,
                  optimizer,
+                 classifier: nn.Module = None,
+                 classifier_optim=None,
+                 classifier_loss_fn=None,
+                 classifier_train_epoch: int = 20,
                  *args,
                  **kwargs):
         super(AutoencoderManager, self).__init__(*args, **kwargs)
@@ -181,6 +185,17 @@ class AutoencoderManager(ManagerBase):
 
         self._train_loss = AverageMeter()
         self._valid_loss = AverageMeter()
+
+        if classifier is not None:
+            self._classifier = classifier.to(self.device)
+            self._classifier_loss_fn = classifier_loss_fn.to(self.device)
+            self._classifier_optim = classifier_optim
+            self._num_classifier_train_epoch = classifier_train_epoch
+
+            self._classifier_train_loss = AverageMeter()
+            self._classifier_train_acc = AverageMeter()
+            self._classifier_valid_loss = AverageMeter()
+            self._classifier_valid_acc = AverageMeter()
 
     def config(self):
         return {
@@ -232,7 +247,88 @@ class AutoencoderManager(ManagerBase):
                 self._valid_loss.update(loss.detach().cpu(), n=num_data)
 
         outputs = dict(loss=self._valid_loss.avg)
-        print("Valid | Epoch: {}: loss: {:.5f}".format(curr_epoch, self._valid_loss.avg))
+        print("Valid | Epoch: {}: loss: {:.5f}".format(curr_epoch + 1, self._valid_loss.avg))
         self._valid_loss.reset()
+
+        return outputs
+
+    def run_classifier_train(self):
+        assert self._classifier is not None, "Set classifier first."
+
+        self.setup()
+        for epoch in range(self._num_classifier_train_epoch):
+            train_outputs = self._classifier_train_epoch(curr_epoch=epoch,
+                                                         dataloader=self._train_dataloader)
+            valid_outputs = self._classifier_valid_epoch(curr_epoch=epoch,
+                                                         dataloader=self._eval_dataloader)
+
+    def _classifier_train_step(self, encoded_data, target):
+        logits = self._classifier(encoded_data)
+        loss = self._classifier_loss_fn(logits, target)
+        return logits, loss
+
+    def _classifier_train_epoch(self, curr_epoch, dataloader):
+        self._classifier.train()
+        self.model.eval()
+
+        with tqdm(total=len(dataloader)) as p_bar:
+            for time_step, (x, y) in enumerate(dataloader):
+                num_data = len(x)
+                x, y = x.to(self.device), y.to(self.device)
+                with torch.no_grad():
+                    x, _ = self.model(x)
+                logits, loss = self._classifier_train_step(x, y)
+
+                self._classifier_optim.zero_grad()
+                loss.backward()
+                self._classifier_optim.step()
+
+                pred = torch.argmax(logits, dim=1)
+                acc = torchmetrics.functional.accuracy(pred, y)
+
+                self._classifier_train_loss.update(loss.detach().cpu(), n=num_data)
+                self._classifier_train_acc.update(acc.detach().cpu(), n=num_data)
+
+                p_bar.update(1)
+                p_bar.set_description('Train | Epoch: {}'.format(curr_epoch + 1))
+                p_bar.set_postfix_str('loss: {:.5f}, acc: {:.2f}%'.format(self._classifier_train_loss.avg,
+                                                                          self._classifier_train_acc.avg * 100))
+                p_bar.refresh()
+
+        outputs = dict(loss=self._classifier_train_loss.avg, acc=self._classifier_train_acc.avg)
+
+        self._classifier_train_loss.reset()
+        self._classifier_train_acc.reset()
+
+        return outputs
+
+    def _classifier_valid_step(self, data, target):
+        logits = self._classifier(data)
+        loss = self._classifier_loss_fn(logits, target)
+        return logits, loss
+
+    def _classifier_valid_epoch(self, curr_epoch, dataloader):
+        self._classifier.eval()
+        self.model.eval()
+
+        with torch.no_grad():
+            for time_step, (x, y) in enumerate(dataloader):
+                num_data = len(x)
+                x, y = x.to(self.device), y.to(self.device)
+                with torch.no_grad():
+                    x, _ = self.model(x)
+                logits, loss = self._classifier_valid_step(x, y)
+                pred = torch.argmax(logits, dim=1)
+                acc = torchmetrics.functional.accuracy(pred, y)
+                self._classifier_valid_loss.update(loss.detach().cpu(), n=num_data)
+                self._classifier_valid_acc.update(acc.detach().cpu(), n=num_data)
+
+        outputs = dict(loss=self._classifier_valid_loss.avg, acc=self._classifier_valid_acc.avg)
+        print("Valid | Epoch: {} | loss: {:.5f}, acc: {:.2f}%".format(curr_epoch + 1,
+                                                                      self._classifier_valid_loss.avg,
+                                                                      self._classifier_valid_acc.avg * 100))
+
+        self._classifier_valid_loss.reset()
+        self._classifier_valid_acc.reset()
 
         return outputs

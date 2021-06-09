@@ -78,7 +78,6 @@ class ManagerBase(object):
                                              dataloader=self._train_dataloader)
             valid_outputs = self.valid_epoch(curr_epoch=epoch,
                                              dataloader=self._eval_dataloader)
-        print("Final output | Loss: {}, Accuracy: {}".format(valid_outputs['loss'], valid_outputs['acc']))
 
 
 class ClassifierManager(ManagerBase):
@@ -107,7 +106,6 @@ class ClassifierManager(ManagerBase):
     def train_step(self, data, target):
         logits = self.model(data)
         loss = self._loss_fn(logits, target)
-
         return logits, loss
 
     def train_epoch(self, curr_epoch, dataloader):
@@ -129,7 +127,7 @@ class ClassifierManager(ManagerBase):
                 self._train_accuracy.update(acc.detach().cpu(), n=num_data)
 
                 p_bar.update(1)
-                p_bar.set_description('Train | Epoch: {} |'.format(curr_epoch + 1))
+                p_bar.set_description('Train | Epoch: {}'.format(curr_epoch + 1))
                 p_bar.set_postfix_str('loss: {:.5f}, acc: {:.2f}%'.format(self._train_loss.avg,
                                                                           self._train_accuracy.avg * 100))
                 p_bar.refresh()
@@ -165,5 +163,76 @@ class ClassifierManager(ManagerBase):
 
         self._valid_loss.reset()
         self._valid_accuracy.reset()
+
+        return outputs
+
+
+class AutoencoderManager(ManagerBase):
+
+    def __init__(self,
+                 loss_fn: nn.Module,
+                 optimizer,
+                 *args,
+                 **kwargs):
+        super(AutoencoderManager, self).__init__(*args, **kwargs)
+
+        self._loss_fn = loss_fn.to(self.device)
+        self._optimizer = optimizer
+
+        self._train_loss = AverageMeter()
+        self._valid_loss = AverageMeter()
+
+    def config(self):
+        return {
+            **super(AutoencoderManager, self).config,
+        }
+
+    def train_step(self, data):
+        _, decoded = self.model(data)
+        loss = self._loss_fn(decoded, data)
+        return loss
+
+    def train_epoch(self, curr_epoch, dataloader):
+        self.model.train()
+        with tqdm(total=len(dataloader)) as p_bar:
+            for time_step, (x, _) in enumerate(dataloader):
+                num_data = len(x)
+                x = x.to(self.device)
+                loss = self.train_step(x)
+
+                self._optimizer.zero_grad()
+                loss.backward()
+                self._optimizer.step()
+
+                self._train_loss.update(loss.detach().cpu(), n=num_data)
+
+                p_bar.update(1)
+                p_bar.set_description('Train | Epoch: {}'.format(curr_epoch + 1))
+                p_bar.set_postfix_str('loss: {:.5f}'.format(self._train_loss.avg))
+                p_bar.refresh()
+
+        outputs = dict(loss=self._train_loss.avg)
+
+        self._train_loss.reset()
+
+        return outputs
+
+    def valid_step(self, data):
+        _, decoded = self.model(data)
+        loss = self._loss_fn(decoded, data)
+        return loss
+
+    def valid_epoch(self, curr_epoch, dataloader):
+        self.model.eval()
+        with torch.no_grad():
+            for time_step, (x, _) in enumerate(dataloader):
+                num_data = len(x)
+                x = x.to(self.device)
+                loss = self.valid_step(x)
+                self._valid_loss.update(loss.detach().cpu(), n=num_data)
+
+        outputs = dict(loss=self._valid_loss.avg)
+        print("Valid | Epoch: {}: loss: {:.5f}".format(curr_epoch, self._valid_loss.avg))
+        self._valid_loss.reset()
 
         return outputs

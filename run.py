@@ -3,7 +3,10 @@ from torch import nn
 
 from example_dataloader import ExampleDatamodule
 from models.dnn import NeuralNetwork
-from manager.managers import ClassifierManager
+from models.cnn import ConvNet
+from models.rnn import RecurrentNet
+from models.autoencoder import Autoencoder
+from manager.managers import ClassifierManager, AutoencoderManager
 
 
 def sample_data(dataloader):
@@ -19,9 +22,18 @@ def run():
     num_epochs = 30
     dm = ExampleDatamodule(data_path='data',
                            batch_size=128)
-    model = NeuralNetwork(input_dim=dm.dims, num_classes=dm.num_classes)
+
+    dnn_model = NeuralNetwork(input_dim=dm.dims,
+                              num_classes=dm.num_classes)
+    cnn_model = ConvNet(input_dim=dm.dims,
+                        num_classes=dm.num_classes)
+    rnn_model = RecurrentNet(input_dim=dm.dims,
+                             hidden_dim=128,
+                             num_layers=2,
+                             num_classes=dm.num_classes)
+
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(),
+    optimizer = torch.optim.SGD(rnn_model.parameters(),
                                 lr=1e-3)
 
     m = ClassifierManager(num_classes=dm.num_classes,
@@ -29,12 +41,40 @@ def run():
                           datamodule=dm,
                           device=device,
                           loss_fn=loss_fn,
-                          model=model,
+                          model=rnn_model,
                           num_epochs=num_epochs,
                           optimizer=optimizer)
 
     m.run()
 
 
+def run_autoencoder():
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("Using {} device".format(device))
+
+    num_epochs = 30
+    dm = ExampleDatamodule(data_path='data',
+                           batch_size=128)
+
+    autoencoder = Autoencoder(input_dim=dm.dims,
+                              num_classes=dm.num_classes)
+
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.Adam(autoencoder.parameters(),
+                                 lr=0.005)
+
+    m = AutoencoderManager(num_classes=dm.num_classes,
+                           feature_dim=dm.dims,
+                           datamodule=dm,
+                           device=device,
+                           loss_fn=loss_fn,
+                           model=autoencoder,
+                           num_epochs=num_epochs,
+                           optimizer=optimizer)
+
+    m.run()
+
+
 if __name__ == '__main__':
-    run()
+    # run()
+    run_autoencoder()

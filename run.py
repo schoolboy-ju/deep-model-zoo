@@ -20,7 +20,7 @@ def run():
     print("Using {} device".format(device))
 
     num_epochs = 30
-    dm = ExampleDatamodule(data_path='data',
+    dm = ExampleDatamodule(data_path='datasets',
                            batch_size=128)
 
     dnn_model = NeuralNetwork(input_dim=dm.dims,
@@ -53,7 +53,7 @@ def run_autoencoder():
     print("Using {} device".format(device))
 
     num_epochs = 10
-    dm = ExampleDatamodule(data_path='data',
+    dm = ExampleDatamodule(data_path='datasets',
                            batch_size=128)
 
     autoencoder = CNNAutoencoder(input_dim=dm.dims,

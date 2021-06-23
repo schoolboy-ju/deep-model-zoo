@@ -13,7 +13,7 @@ class ExampleDatamodule(object):
         return 10
 
     def __init__(self,
-                 data_path: str = 'data',
+                 data_path: str = 'datasets',
                  batch_size: int = 32):
         self._data_path = data_path
         self._batch_size = batch_size

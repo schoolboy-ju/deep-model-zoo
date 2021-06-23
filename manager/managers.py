@@ -50,8 +50,8 @@ class ManagerBase(object):
         self._num_epochs = num_epochs
         self._model = model
 
-        self._train_dataloader = None
-        self._eval_dataloader = None
+        self._train_dataloader = self._datamodule.train_dataloader
+        self._valid_dataloader = self._datamodule.valid_dataloader
 
     def train_step(self, curr_epoch):
         raise NotImplementedError
@@ -65,19 +65,13 @@ class ManagerBase(object):
     def valid_epoch(self, curr_epoch):
         raise NotImplementedError
 
-    def setup(self):
-        self._datamodule.setup()
-        self._train_dataloader = self._datamodule.train_dataloader
-        self._eval_dataloader = self._datamodule.eval_dataloader
-
     def run(self):
-        self.setup()
         valid_outputs = None
         for epoch in range(self._num_epochs):
             train_outputs = self.train_epoch(curr_epoch=epoch,
                                              dataloader=self._train_dataloader)
             valid_outputs = self.valid_epoch(curr_epoch=epoch,
-                                             dataloader=self._eval_dataloader)
+                                             dataloader=self._valid_dataloader)
 
 
 class ClassifierManager(ManagerBase):
@@ -255,12 +249,11 @@ class AutoencoderManager(ManagerBase):
     def run_classifier_train(self):
         assert self._classifier is not None, "Set classifier first."
 
-        self.setup()
         for epoch in range(self._num_classifier_train_epoch):
             train_outputs = self._classifier_train_epoch(curr_epoch=epoch,
                                                          dataloader=self._train_dataloader)
             valid_outputs = self._classifier_valid_epoch(curr_epoch=epoch,
-                                                         dataloader=self._eval_dataloader)
+                                                         dataloader=self._valid_dataloader)
 
     def _classifier_train_step(self, encoded_data, target):
         logits = self._classifier(encoded_data)

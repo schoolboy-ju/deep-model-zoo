@@ -1,11 +1,12 @@
 import torch
 from torch import nn
 
-from example_dataloader import ExampleDatamodule
+from datamodules.example_datamodule import ExampleDatamodule
+from datamodules.preprocessed_datamodule import PreprocessedDatamodule
 from models.dnn import NeuralNetwork
 from models.cnn import ConvNet
 from models.rnn import RecurrentNet
-from models.autoencoder import Autoencoder, CNNAutoencoder, ExampleClassifier
+from models.autoencoder import CNNAutoencoder, ExampleClassifier
 from manager.managers import ClassifierManager, AutoencoderManager
 
 
@@ -20,20 +21,26 @@ def run():
     print("Using {} device".format(device))
 
     num_epochs = 30
-    dm = ExampleDatamodule(data_path='datasets',
-                           batch_size=128)
+    # dm = ExampleDatamodule(data_path='datasets',
+    #                        batch_size=128)
+    dm = PreprocessedDatamodule(
+        train_batch_size=32,
+        valid_batch_size=32,
+        num_workers=12,
+        dataset_name='acoustic_rpm_2000_1624414180'
+    )
 
     dnn_model = NeuralNetwork(input_dim=dm.dims,
                               num_classes=dm.num_classes)
     cnn_model = ConvNet(input_dim=dm.dims,
                         num_classes=dm.num_classes)
-    rnn_model = RecurrentNet(input_dim=dm.dims,
-                             hidden_dim=128,
-                             num_layers=2,
-                             num_classes=dm.num_classes)
+    # rnn_model = RecurrentNet(input_dim=dm.dims,
+    #                          hidden_dim=128,
+    #                          num_layers=2,
+    #                          num_classes=dm.num_classes)
 
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(rnn_model.parameters(),
+    optimizer = torch.optim.SGD(cnn_model.parameters(),
                                 lr=1e-3)
 
     m = ClassifierManager(num_classes=dm.num_classes,
@@ -41,7 +48,7 @@ def run():
                           datamodule=dm,
                           device=device,
                           loss_fn=loss_fn,
-                          model=rnn_model,
+                          model=cnn_model,
                           num_epochs=num_epochs,
                           optimizer=optimizer)
 
@@ -86,5 +93,5 @@ def run_autoencoder():
 
 
 if __name__ == '__main__':
-    # run()
-    run_autoencoder()
+    run()
+    # run_autoencoder()

@@ -22,7 +22,7 @@ class ConvNet(BaseModule):
 
         self._classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32 * 5 * 5, 120),
+            nn.Linear(32 * 30 * 8, 120),
             nn.ReLU(),
             nn.Linear(120, 84),
             nn.ReLU(),

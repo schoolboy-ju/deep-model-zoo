@@ -18,17 +18,16 @@ class ExampleDatamodule(object):
         self._data_path = data_path
         self._batch_size = batch_size
 
-        self._train_data = None
-        self._eval_data = None
+        self._train_dataset = None
+        self._valid_dataset = None
 
-    def setup(self):
-        self._train_data = datasets.FashionMNIST(
+        self._train_dataset = datasets.FashionMNIST(
             root=self._data_path,
             train=True,
             download=True,
             transform=ToTensor(),
         )
-        self._eval_data = datasets.FashionMNIST(
+        self._valid_dataset = datasets.FashionMNIST(
             root=self._data_path,
             train=False,
             download=True,
@@ -37,8 +36,8 @@ class ExampleDatamodule(object):
 
     @property
     def train_dataloader(self):
-        return DataLoader(self._train_data, batch_size=self._batch_size)
+        return DataLoader(self._train_dataset, batch_size=self._batch_size)
 
     @property
-    def eval_dataloader(self):
-        return DataLoader(self._eval_data, batch_size=self._batch_size)
+    def valid_dataloader(self):
+        return DataLoader(self._valid_dataset, batch_size=self._batch_size)
